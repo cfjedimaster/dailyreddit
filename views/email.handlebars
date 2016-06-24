@@ -1,0 +1,26 @@
+
+
+<h1>Daily Reddit Report</h1>
+
+<p>Here are the most recent updates for your subscribed subreddits:</p>
+
+{{#each subs}}
+	<h2>{{name}}</h2>
+
+	{{#each posts}}
+	<p style="margin-bottom:30px">
+	{{#if thumbnail}}
+	<img src="{{thumbnail}}" align="left" style="margin-right:10px">
+	{{/if}}
+	<b>Title:</b> {{title}}<br/>
+	<b>URL:</b> <a href="{{url}}">{{url}}</a><br/>
+	<b>Reddit URL:</b> <a href="https://www.reddit.com{{permalink}}">https://www.reddit.com{{permalink}}</a> ({{ num_comments}} comments)<br/>
+	<b>Author:</b> {{ author.name }}<br/>
+	<br clear="left">
+	{{#if is_self}}
+	{{selftext}}
+	{{/if}}
+	</p>	
+	{{/each}}
+
+{{/each}}

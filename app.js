@@ -2,6 +2,7 @@ var express = require('express');
 var app = express();
 var exphbs  = require('express-handlebars');
 var flash = require('connect-flash');
+var nodemailer = require('nodemailer');
 
 var credentials = require('./credentials.json');
 
@@ -107,16 +108,77 @@ app.post('/addSub', requireLogin, function(req, res) {
 	});
 });
 
-function doSubscriptions() {
+function doSubscriptions(res,cb) {
 	console.log('doing subscriptions');
+	
+	var mailTransport = nodemailer.createTransport('SMTP',{ service: 'Gmail',
+		auth: {
+			user: credentials.gmail.username,
+			pass: credentials.gmail.password,
+		} 
+	});
+
 	User.find({}, function(err,users) {
 		console.log('i have '+users.length+' users');
+		users.forEach(function(u) {
+			console.log('processing '+u.id+' = '+u.subscriptions);
+			var promises = [];
+			u.subscriptions.forEach(function(sub) {
+				promises.push(reddit.getNew(sub));
+			});
+			Promise.all(promises).then(function(results) {
+				console.log('all done getting everything ')
+				/*
+				new global ob to simplify view a bit
+				*/
+				var subs = [];
+				for(var i=0;i<results.length;i++) {
+					var posts = results[i].map(function(p) {
+						if(p.thumbnail === 'self' || p.thumbnail === 'default' || p.thumbnail === 'nsfw') delete p.thumbnail;
+						return p;
+					});
+
+					subs.push({
+						name:u.subscriptions[i],
+						posts:posts
+					});
+				}
+
+				app.render('email', {subs:subs}, function(err, html) {
+					cb(html);				
+				});
+
+				/*
+				var message = {	
+					from: '"dailyreddit" <raymondcamden@gmail.com>',
+					to: '"Raymond Camden" <raymondcamden@gmail.com>',
+					subject: 'Daily Reddit Email', 
+					text: s
+				};	
+
+				mailTransport.sendMail(message, function(error){
+					if(error){
+						console.log('Error occured');
+						console.log(error.message);
+						return;
+					}
+					console.log('Message sent successfully!');
+			
+				});
+				*/
+				
+			}).catch(function(e) {
+				console.log('EEERRRRooooRR',e);
+			});
+		});
 	});
 }
 
 app.get('/test', function(req, res) {
-	doSubscriptions();
-	res.send('ok');
+	doSubscriptions(res,function(result) {
+		res.send(result);
+	});
+//	res.send('ok');
 });
 
 app.use(function(err, req, res, next) {
