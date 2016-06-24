@@ -15,13 +15,8 @@ mongoose.connect("mongodb://localhost:27017/dailyreddit", opts);
 
 var User = require('./models/user.js');
 
-var snoowrap = require('snoowrap');
-var snoowrapper = new snoowrap({
-	user_agent:'dailyreddit',
-	client_id:credentials.reddit.client_id,
-	client_secret:credentials.reddit.client_secret,
-	refresh_token:credentials.reddit.refresh_token
-});
+var RedditAPI = require('./reddit');
+var reddit = new RedditAPI(credentials.reddit.client_id, credentials.reddit.client_secret, credentials.reddit.refresh_token);
 
 var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
@@ -48,21 +43,6 @@ passport.use(new TwitterStrategy({
 		if(err) return done(err);
 		if(user) return done(null, newUser.id);			
 	});
-	/*
-	User.findOne({id:newUser.id}, function(err, user) {
-		console.log('did i find the user? '+user);
-		if(err) return done(err);
-		if(user) return done(null, user);
-
-	});
-	*/
-	/*
-	User.findOrCreate(newUser,function(err, user) {
-		console.log('user made',user);
-		if(err) return done(err);
-		done(null, user);
-	});
-	*/
 }));
 
 passport.serializeUser(function(id, cb) {
@@ -110,11 +90,9 @@ app.get('/dashboard', requireLogin, function(req, res) {
 app.post('/searchSubreddits', requireLogin, function(req, res) {
 	var search = req.body.search;
 	console.log('subreddit search for '+search);
-	
-	snoowrapper.search_subreddit_names({query:search}).then(function(results) {
+	reddit.searchSubreddits(search).then(function(results) {
 		res.send(results);
 	});
-
 });
 
 app.post('/addSub', requireLogin, function(req, res) {
