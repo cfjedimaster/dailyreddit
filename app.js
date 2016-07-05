@@ -2,7 +2,6 @@ var express = require('express');
 var app = express();
 var exphbs  = require('express-handlebars');
 var flash = require('connect-flash');
-var nodemailer = require('nodemailer');
 var Mailgun = require('mailgun-js');
 
 var credentials = require('./credentials.json');
@@ -22,6 +21,29 @@ var reddit = new RedditAPI(credentials.reddit.client_id, credentials.reddit.clie
 
 var passport = require('passport');
 var TwitterStrategy = require('passport-twitter').Strategy;
+var FacebookStrategy = require('passport-facebook').Strategy;
+
+/*
+This function is used to create/update a user based on their profile. From
+what I can see, both Twitter and FB return the same 'form' so we can abstract it.
+*/
+function storeUser(profile,cb) {
+	//make a user ob based on profile
+	//id is provider+id
+	var newUser = {
+		id:profile.provider + '-' + profile.id
+	}
+	if(profile.emails && profile.emails.length) {
+		newUser.email = profile.emails[0].value;
+	}
+	console.log('newUser',newUser);
+	User.update(
+		{id:newUser.id},
+		newUser, {upsert:true}, function(err, user) {
+		if(err) return cb(err);
+		if(user) return cb(null, newUser.id);			
+	});
+}
 
 passport.use(new TwitterStrategy({
 	consumerKey:credentials.twitter.consumerKey,
@@ -29,26 +51,20 @@ passport.use(new TwitterStrategy({
 	callbackURL:'http://localhost:3000/auth/twitter/callback'
 },function(token, tokenSecret, profile, done) {
 	console.log('in done: token',token);
-	//console.log('profile',profile);
-	//make a user ob based on profile
-	//id is provider+id
-	var newUser = {
-		id:profile.provider + '-' + profile.id
-	}
-	if(profile.emails && profile.emails.length) {
-		newUser.email = profiles.emails[0].value;
-	}
-	console.log('newUser',newUser);
-	User.update(
-		{id:newUser.id},
-		newUser, {upsert:true}, function(err, user) {
-		if(err) return done(err);
-		if(user) return done(null, newUser.id);			
-	});
+	storeUser(profile,done);
+}));
+
+passport.use(new FacebookStrategy({
+	clientID:credentials.facebook.clientID,
+	clientSecret:credentials.facebook.clientSecret,
+	callbackURL:'http://localhost:3000/auth/facebook/callback',
+	profileFields:['id','email']
+},function(token,refreshToken,profile,done) {
+	console.log('in done: token',token);
+	storeUser(profile,done);
 }));
 
 passport.serializeUser(function(id, cb) {
-	console.log('serializeUser '+id);
 	cb(null, id);
 });
 
@@ -80,6 +96,12 @@ app.get('/auth/twitter/callback',
   passport.authenticate('twitter', { successRedirect: '/dashboard',
                                      failureRedirect: '/' }));
 
+app.get('/auth/facebook', passport.authenticate('facebook', {scope:['email']}));
+
+app.get('/auth/facebook/callback',
+  passport.authenticate('facebook', { successRedirect: '/dashboard',
+                                     failureRedirect: '/' }));
+
 function requireLogin(req,res,next) {
 	if(!req.isAuthenticated()) return res.redirect('/');
 	next();
@@ -109,6 +131,19 @@ app.post('/addSub', requireLogin, function(req, res) {
 	});
 });
 
+app.post('/removeSub', requireLogin, function(req, res) {
+	var sub = req.body.subscription.toLowerCase();
+	console.log('removing sub '+sub+' for the user');
+	var found = req.user.subscriptions.indexOf(sub);
+	if(found !== -1) {
+		req.user.subscriptions.splice(found, 1);
+	}
+	req.user.save(function(err) {
+		//handle errors? Suuuuure
+		res.send(req.user.subscriptions);
+	});
+});
+
 function doSubscriptions(res,cb) {
 	console.log('doing subscriptions');
 
@@ -118,23 +153,6 @@ function doSubscriptions(res,cb) {
 	//reddit uses seconds, not ms
 	var yesterdayEpoch = yesterday.getTime()/1000;
 
-/*
-var mailTransport = nodemailer.createTransport({ service: 'mailgun',
-    auth: {
-        username: credentials.mailgun.username,
-        password: credentials.mailgun.password,
-		apiKey:credentials.mailgun.apikey,
-		domain:credentials.mailgun.domain
-    } 
-});
-mailTransport.verify(function(error, success) {
-    if (error) {
-            console.log(error);
-    } else {
-            console.log('Server is ready to take our messages');
-    }
-});
-*/
 	var mailgun = new Mailgun({apiKey: credentials.mailgun.apikey, domain: credentials.mailgun.domain});
 
 	User.find({}, function(err,users) {

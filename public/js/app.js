@@ -8,10 +8,10 @@ $(document).ready(function() {
 	$searchForm = $('#searchForm');
 	$results = $('#results');
 	$subs = $('#subscriptions');
-
 	$searchForm.on('submit', doSearch);
 
 	$('body').on('click', '.addSub', addSub);
+	$('body').on('click', '.sub', removeSub);
 });
 
 function doSearch(e) {
@@ -36,7 +36,24 @@ function addSub(e) {
 	var sub = $(this).text();
 	console.log('adding subcription to '+sub);
 	$.post('/addSub', {subscription:sub}, function(res) {
-		console.log(res);
-		$subs.html(res.join());
+		$subs.html('');
+		var s = '';
+		res.forEach(function(sub) {
+			s += '<li><span class="sub">' + sub + '</span></li>';
+		});
+		$subs.html(s);
+	});
+}
+
+function removeSub(e) {
+	var sub = $(this).text();
+	console.log('removing subcription to '+sub);
+	$.post('/removeSub', {subscription:sub}, function(res) {
+		$subs.html('');
+		var s = '';
+		res.forEach(function(sub) {
+			s += '<li><span class="sub">' + sub + '</span></li>';
+		});
+		$subs.html(s);
 	});
 }

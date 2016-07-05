@@ -1,7 +1,12 @@
 <h2>Dashboard</h2>
 
 <p>
-	Current list of subscriptions: <span id="subscriptions">{{user.subscriptions}}</span>
+	Current list of subscriptions: 
+	<ul id="subscriptions">
+	{{#each user.subscriptions}}
+		<li><span class="sub" title="Click to unsubscribe">{{.}}</span></li>
+	{{/each}}
+	</ul>
 </p>
 
 <form id="searchForm">
