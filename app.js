@@ -3,6 +3,7 @@ var app = express();
 var exphbs  = require('express-handlebars');
 var flash = require('connect-flash');
 var nodemailer = require('nodemailer');
+var Mailgun = require('mailgun-js');
 
 var credentials = require('./credentials.json');
 
@@ -110,13 +111,31 @@ app.post('/addSub', requireLogin, function(req, res) {
 
 function doSubscriptions(res,cb) {
 	console.log('doing subscriptions');
-	
-	var mailTransport = nodemailer.createTransport('SMTP',{ service: 'Gmail',
-		auth: {
-			user: credentials.gmail.username,
-			pass: credentials.gmail.password,
-		} 
-	});
+
+	//get the time 24 hours ago
+	var yesterday = new Date();
+	yesterday.setDate(yesterday.getDate() - 1);
+	//reddit uses seconds, not ms
+	var yesterdayEpoch = yesterday.getTime()/1000;
+
+/*
+var mailTransport = nodemailer.createTransport({ service: 'mailgun',
+    auth: {
+        username: credentials.mailgun.username,
+        password: credentials.mailgun.password,
+		apiKey:credentials.mailgun.apikey,
+		domain:credentials.mailgun.domain
+    } 
+});
+mailTransport.verify(function(error, success) {
+    if (error) {
+            console.log(error);
+    } else {
+            console.log('Server is ready to take our messages');
+    }
+});
+*/
+	var mailgun = new Mailgun({apiKey: credentials.mailgun.apikey, domain: credentials.mailgun.domain});
 
 	User.find({}, function(err,users) {
 		console.log('i have '+users.length+' users');
@@ -133,7 +152,7 @@ function doSubscriptions(res,cb) {
 				*/
 				var subs = [];
 				for(var i=0;i<results.length;i++) {
-					var posts = results[i].map(function(p) {
+					var posts = results[i].map(function(p) {						
 						if(p.thumbnail === 'self' || p.thumbnail === 'default' || p.thumbnail === 'nsfw') delete p.thumbnail;
 						return p;
 					});
@@ -145,27 +164,30 @@ function doSubscriptions(res,cb) {
 				}
 
 				app.render('email', {subs:subs}, function(err, html) {
-					cb(html);				
+
+					var message = {	
+						from: 'postmaster@raymondcamden.mailgun.org',
+						to: '"Raymond Camden" <raymondcamden@gmail.com>',
+						subject: 'Daily Reddit Email', 
+						html: html
+					};	
+
+					/*
+					mailgun.messages().send(message, function (err, body) {
+						//If there is an error, render the error page
+						if (err) {
+							console.log("got an error: ", err);
+						}
+						else {
+							console.log(body);
+						}
+					});
+					*/
+
+					cb(html);
+
 				});
 
-				/*
-				var message = {	
-					from: '"dailyreddit" <raymondcamden@gmail.com>',
-					to: '"Raymond Camden" <raymondcamden@gmail.com>',
-					subject: 'Daily Reddit Email', 
-					text: s
-				};	
-
-				mailTransport.sendMail(message, function(error){
-					if(error){
-						console.log('Error occured');
-						console.log(error.message);
-						return;
-					}
-					console.log('Message sent successfully!');
-			
-				});
-				*/
 				
 			}).catch(function(e) {
 				console.log('EEERRRRooooRR',e);
