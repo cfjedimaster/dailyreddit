@@ -3,6 +3,7 @@ var app = express();
 var exphbs  = require('express-handlebars');
 var flash = require('connect-flash');
 var Mailgun = require('mailgun-js');
+var CronJob = require('cron').CronJob;
 
 var credentials = require('./credentials.json');
 
@@ -144,7 +145,7 @@ app.post('/removeSub', requireLogin, function(req, res) {
 	});
 });
 
-function doSubscriptions(res,cb) {
+function doSubscriptions() {
 	console.log('doing subscriptions');
 
 	//get the time 24 hours ago
@@ -160,6 +161,11 @@ function doSubscriptions(res,cb) {
 		users.forEach(function(u) {
 			console.log('processing '+u.id+' = '+u.subscriptions);
 			var promises = [];
+			if(u.subscriptions.length === 0) {
+				console.log('skipping users, no subs');
+				return;
+			}
+
 			u.subscriptions.forEach(function(sub) {
 				promises.push(reddit.getNew(sub));
 			});
@@ -185,12 +191,11 @@ function doSubscriptions(res,cb) {
 
 					var message = {	
 						from: 'postmaster@raymondcamden.mailgun.org',
-						to: '"Raymond Camden" <raymondcamden@gmail.com>',
+						to: u.email,
 						subject: 'Daily Reddit Email', 
 						html: html
 					};	
 
-					/*
 					mailgun.messages().send(message, function (err, body) {
 						//If there is an error, render the error page
 						if (err) {
@@ -200,9 +205,6 @@ function doSubscriptions(res,cb) {
 							console.log(body);
 						}
 					});
-					*/
-
-					cb(html);
 
 				});
 
@@ -214,11 +216,14 @@ function doSubscriptions(res,cb) {
 	});
 }
 
+
+new CronJob('00 00 06 * * *', function() {
+	doSubscriptions();
+}, null, true, 'America/Los_Angeles');
+
 app.get('/test', function(req, res) {
-	doSubscriptions(res,function(result) {
-		res.send(result);
-	});
-//	res.send('ok');
+	doSubscriptions();
+	res.send('ok');
 });
 
 app.use(function(err, req, res, next) {
