@@ -81,7 +81,15 @@ app.use(express.static('public'));
 app.use(require('body-parser').urlencoded({ extended: true }));
 app.use(require('express-session')({ secret: 'galaga1973', resave: false, saveUninitialized: false }));
 app.use(flash());
-app.engine('handlebars', exphbs({defaultLayout: 'main'}));
+app.engine('handlebars', exphbs({
+	defaultLayout: 'main', 
+	helpers:{
+		left:function (str) { 
+			if(str.length < 500) return str;
+			return str.substr(0,500) + '...'; 
+		}
+	}
+}));
 app.set('view engine', 'handlebars');
 
 app.use(passport.initialize());
@@ -221,9 +229,22 @@ new CronJob('00 00 06 * * *', function() {
 	doSubscriptions();
 }, null, true, 'America/Los_Angeles');
 
+//test force do email
 app.get('/test', function(req, res) {
 	doSubscriptions();
 	res.send('ok');
+});
+//test template, a bit of code dupe here
+app.get('/test2', function(req, res) {
+	reddit.getNew('starwars').then(function(result) {
+			var posts = result.map(function(p) {						
+				if(p.thumbnail === 'self' || p.thumbnail === 'default' || p.thumbnail === 'nsfw') delete p.thumbnail;
+				return p;
+			});
+
+		var subs = [{name:'StarWars',posts:posts}]
+		res.render('email', {subs:subs});
+	});
 });
 
 app.use(function(err, req, res, next) {
